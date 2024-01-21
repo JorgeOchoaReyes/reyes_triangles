@@ -1,5 +1,5 @@
-const power = 8;
-const n = 50;
+const power = 3;
+const n = 10;
 let foundZero = false;
 
 let stringResults = "";
