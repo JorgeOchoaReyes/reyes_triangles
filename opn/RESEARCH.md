@@ -21,6 +21,7 @@ central obstruction to a proof, and (c) lays out concrete next steps.
 | `constraints.ts` | Tests any candidate against the strongest published necessary conditions |
 | `omega-bounds.ts` | Machine-proves (exact rationals) lower bounds on omega(N) by smallest prime factor |
 | `smooth-prover.ts` | **The factor-chain prover.** Complete decision procedure: "is any perfect number B-smooth?" |
+| `omega-prover.ts` | Machine proof that omega(N) >= 4: exact support enumeration + the factor-chain prover |
 | `test.ts` | Test suite (`npm test`) |
 
 ## The engine: searching by square part
@@ -112,6 +113,28 @@ B = 31 it returns exactly {6, 28, 496}, at B = 127 exactly
 largest prime factor exceeds 10^8, Goto–Ohno 2008 — but that proof leans on
 decades of specialized machinery; this one is 300 lines of TypeScript you
 can read, test, and re-run.)
+
+## Machine-proved: omega(N) >= 4 (`omega-prover.ts`)
+
+Composing the two engines yields a theorem about *unbounded* primes, not just
+smooth ones — an odd perfect number has **at least 4 distinct prime factors**
+(mechanizing results of the Peirce/Servais era):
+
+1. *Enumeration* (exact rationals): 2 = sigma(N)/N < prod p/(p-1), and for
+   omega <= 3 only three supports survive: {3,5,7}, {3,5,11}, {3,5,13}.
+   The enumerator proves its own completeness — each slot terminates because
+   the best completion is monotone decreasing in the next prime — and from
+   omega = 4 it *throws* on unbounded families like {3,5,7,p} rather than
+   silently truncating.
+2. *Decision*: all three supports are 13-smooth, and `proveSmooth(13, "odd")`
+   refutes 13-smoothness — in exactly 2 search nodes, because with sigma
+   chains confined to primes <= 13 the reachable abundancy provably tops out
+   below 2.
+
+Run it: `node opn/omega-prover.ts`. Extending to omega >= 5 requires the
+parametric chain analysis for the unbounded families (sigma(3^a) would have
+to factor over {5, 7, p} with p symbolic) — the precise wall where the
+classical proofs get hard. That is the sharpest next target in this codebase.
 
 ## The obstruction: Descartes spoofs
 

@@ -16,6 +16,7 @@ import { bruteForcePerfect } from "./brute.ts";
 import { analyzeCandidate } from "./constraints.ts";
 import { minOmegaForSmallestPrime } from "./omega-bounds.ts";
 import { proveSmooth, allowedExponents, exponentCap, primesUpTo } from "./smooth-prover.ts";
+import { candidateSupports } from "./omega-prover.ts";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -138,6 +139,19 @@ test("smooth prover: no odd perfect number is 60-smooth", () => {
   const r = proveSmooth(60, "odd");
   assert.deepEqual(r.solutions, []);
   assert.ok(r.nodes > 0);
+});
+
+test("omega prover: support enumeration is exact", () => {
+  assert.deepEqual(candidateSupports(1), []);
+  assert.deepEqual(candidateSupports(2), []);
+  assert.deepEqual(candidateSupports(3), [
+    [3, 5, 7],
+    [3, 5, 11],
+    [3, 5, 13],
+  ]);
+  // from omega = 4 on, families like {3,5,7,p} are unbounded in p — the
+  // enumeration must refuse rather than silently truncate
+  assert.throws(() => candidateSupports(4), /unbounded family/);
 });
 
 console.log(`\n${passed} tests passed.`);
