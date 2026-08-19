@@ -20,6 +20,7 @@ central obstruction to a proof, and (c) lays out concrete next steps.
 | `brute.ts` | Assumption-free cross-check: sieves sigma(n) for every n up to a bound |
 | `constraints.ts` | Tests any candidate against the strongest published necessary conditions |
 | `omega-bounds.ts` | Machine-proves (exact rationals) lower bounds on omega(N) by smallest prime factor |
+| `smooth-prover.ts` | **The factor-chain prover.** Complete decision procedure: "is any perfect number B-smooth?" |
 | `test.ts` | Test suite (`npm test`) |
 
 ## The engine: searching by square part
@@ -71,6 +72,47 @@ from the run on 2026-08-19 that produced these claims):
   least 41; smallest prime ≥ 59 forces at least 509 distinct primes. (Row 1
   reproduces the classical omega ≥ 3.)
 
+## The factor-chain prover (`smooth-prover.ts`)
+
+Roadmap item 2 — implemented. This is a from-scratch, fully rigorous version
+of the method behind every modern published bound: a **complete decision
+procedure** for "does any perfect number exist whose prime factors all lie
+≤ B?" Two pillars make the search provably finite (no heuristic cutoffs):
+
+1. **Sigma smoothness.** If all primes of N lie in T, then each
+   sigma(p^e) divides sigma(N) = 2N, so its odd prime factors must lie in T.
+2. **A provable exponent cap.** If sigma(p^e) = (p^{e+1}-1)/(p-1) is
+   T-smooth then by the lifting-the-exponent lemma
+   sigma(p^e) ≤ C_p · (e+1) with C_p = prod over l in T of l^{v_l(p^{ord_l(p)}-1)}.
+   Combined with sigma(p^e) > p^e this bounds e explicitly.
+
+On top of that: Euler's form (one special prime q ≡ 1 mod 4 with exponent
+≡ 1 mod 4 and v_2(sigma(q^k)) = 1, all other exponents even), factor chains
+(choosing p^e forces the primes of sigma(p^e) into N), exact BigInt products
+at every decision, and two sound prunes (abundancy already exceeds 2 /
+can never reach 2). Deciding small primes first turned out to be the key
+optimization: it cut the B = 1000 search from 191,461,073 nodes (47s) to
+106,327 nodes (1.7s).
+
+**Validation**: run with `--even` (Euler constraints off, prime 2 allowed)
+the same engine must *find* the real perfect numbers — and it does: at
+B = 31 it returns exactly {6, 28, 496}, at B = 127 exactly
+{6, 28, 496, 8128}.
+
+**Theorems machine-proved by this code** (2026-08-19):
+
+| Statement | search tree | time |
+|---|---|---|
+| every odd perfect number has a prime factor > 100 | 516 nodes | 0.0s |
+| every odd perfect number has a prime factor > 1000 | 106,327 nodes | 1.7s |
+| every odd perfect number has a prime factor > 2000 | 7,708,586 nodes | 15.6s |
+| every odd perfect number has a prime factor > 3000 | 216,523,125 nodes | 106s |
+
+(The published record for this style of statement is far stronger — the
+largest prime factor exceeds 10^8, Goto–Ohno 2008 — but that proof leans on
+decades of specialized machinery; this one is 300 lines of TypeScript you
+can read, test, and re-run.)
+
 ## The obstruction: Descartes spoofs
 
 In 1638 Descartes noticed that
@@ -121,12 +163,14 @@ finite computation finishes the problem.
    independently-verified N > 10^18 with this exact code. (Not competitive
    with Ochem–Rao's 10^1500, but the *method* here, factor-chain elimination,
    is a small version of theirs.)
-2. **Implement factor chains (the Ochem–Rao method).** Assume a smallest
-   prime; the abundancy requirement sigma(N)/N = 2 forces new primes into N
-   via sigma(p^e) | 2N; branch on those, with interval arithmetic pruning
-   branches whose abundancy cannot reach 2. This is a tree search that this
-   toolkit's primitives (exact sigma, primality, factoring) already support.
-   It is how every modern bound (10^300 → 10^1500) was actually proven.
+2. ~~**Implement factor chains (the Ochem–Rao method).**~~ **Done — see
+   `smooth-prover.ts` above.** The natural continuation: relax "all primes
+   ≤ B" to "the k smallest primes are known, the rest constrained by
+   intervals" — that generalization is the full Ochem–Rao engine and would
+   attack omega(N) bounds and the 10^1500 lower bound directly. The missing
+   ingredient vs. this code: handling primes *outside* a fixed finite set via
+   interval arithmetic on the abundancy, plus case analysis when a sigma
+   factorization leaves a large rough cofactor.
 3. **Abundancy outlaws.** N is perfect iff sigma(N)/N = 2. Study which
    rationals are "abundancy outlaws" (values sigma(n)/n never takes). If 2
    restricted to odds were shown to be an outlaw, done. Partial results

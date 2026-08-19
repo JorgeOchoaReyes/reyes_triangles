@@ -11,7 +11,8 @@
     "opn:euler": "node opn/euler-sieve.ts",
     "opn:spoof": "node opn/euler-sieve.ts --spoof",
     "opn:check": "node opn/constraints.ts",
-    "opn:omega": "node opn/omega-bounds.ts"
+    "opn:omega": "node opn/omega-bounds.ts",
+    "opn:smooth": "node opn/smooth-prover.ts"
   },
   "keywords": [],
   "author": "",

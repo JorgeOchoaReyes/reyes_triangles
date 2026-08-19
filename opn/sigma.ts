@@ -65,7 +65,7 @@ export function gcdBig(a: bigint, b: bigint): bigint {
   return a;
 }
 
-function powMod(base: bigint, exp: bigint, mod: bigint): bigint {
+export function powMod(base: bigint, exp: bigint, mod: bigint): bigint {
   let result = 1n;
   base %= mod;
   while (exp > 0n) {

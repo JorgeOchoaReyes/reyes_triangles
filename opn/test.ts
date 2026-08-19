@@ -15,6 +15,7 @@ import { eulerSieve } from "./euler-sieve.ts";
 import { bruteForcePerfect } from "./brute.ts";
 import { analyzeCandidate } from "./constraints.ts";
 import { minOmegaForSmallestPrime } from "./omega-bounds.ts";
+import { proveSmooth, allowedExponents, exponentCap, primesUpTo } from "./smooth-prover.ts";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -107,6 +108,36 @@ test("omega lower bounds match classical elementary results", () => {
   const r5 = minOmegaForSmallestPrime(5n);
   assert.equal(r5.k, 7);
   assert.deepEqual(r5.primes, [5n, 7n, 11n, 13n, 17n, 19n, 23n]);
+});
+
+test("smooth prover exponent caps are finite and correct", () => {
+  const T = [2, ...primesUpTo(100).filter((p) => p !== 2)];
+  const cap = exponentCap(3, T);
+  assert.ok(cap >= 4 && cap < 10000, `cap = ${cap}`);
+  const opts = allowedExponents(3, T, "nonspecial");
+  const es = opts.map((o) => o.e);
+  assert.ok(es.includes(2), "sigma(3^2) = 13 is 100-smooth"); // forces 13 | N
+  assert.ok(es.includes(4), "sigma(3^4) = 121 = 11^2 is 100-smooth");
+  assert.ok(!es.includes(6), "sigma(3^6) = 1093 is prime > 100");
+  const e2 = opts.find((o) => o.e === 2)!;
+  assert.deepEqual(e2.needs, [13]);
+});
+
+test("smooth prover: special-prime exponent lists respect v_2 = 1", () => {
+  const T = [2, ...primesUpTo(31).filter((p) => p !== 2)];
+  const es = allowedExponents(5, T, "special").map((o) => o.e);
+  assert.ok(es.includes(1), "sigma(5) = 6 = 2 * 3");
+  assert.ok(es.includes(5), "sigma(5^5) = 3906 = 2 * 3^2 * 7 * 31");
+});
+
+test("smooth prover (even mode) rediscovers the real perfect numbers", () => {
+  assert.deepEqual(proveSmooth(31, "even").solutions, [6n, 28n, 496n]);
+});
+
+test("smooth prover: no odd perfect number is 60-smooth", () => {
+  const r = proveSmooth(60, "odd");
+  assert.deepEqual(r.solutions, []);
+  assert.ok(r.nodes > 0);
 });
 
 console.log(`\n${passed} tests passed.`);
