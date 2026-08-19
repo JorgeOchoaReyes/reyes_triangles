@@ -20,6 +20,7 @@ import { candidateSupports } from "./omega-prover.ts";
 import { enumerateOmega4, refuteFamily, proveOmega5 } from "./omega5-prover.ts";
 import { proveSmoothForPrimes } from "./smooth-prover.ts";
 import { enumerateTasks, proveOmegaAtLeast } from "./omega-n-prover.ts";
+import { verifyTouchard } from "./touchard.ts";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -201,6 +202,13 @@ test("general omega prover matches the dedicated omega-5 proof", () => {
   const r = proveOmegaAtLeast(5);
   assert.equal(r.proved, true);
   assert.deepEqual(r.resolvedSupports, [[3, 5, 11, 137]]);
+});
+
+test("Touchard congruence lemmas verify exhaustively", () => {
+  const { holds, checks } = verifyTouchard();
+  assert.equal(holds, true);
+  assert.equal(checks.length, 4);
+  assert.ok(checks.every((c) => c.cases > 0));
 });
 
 console.log(`\n${passed} tests passed.`);

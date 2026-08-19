@@ -14,7 +14,9 @@
     "opn:omega": "node opn/omega-bounds.ts",
     "opn:smooth": "node opn/smooth-prover.ts",
     "opn:omega4": "node opn/omega-prover.ts",
-    "opn:omega5": "node opn/omega5-prover.ts"
+    "opn:omega5": "node opn/omega5-prover.ts",
+    "opn:omegaN": "node opn/omega-n-prover.ts",
+    "opn:touchard": "node opn/touchard.ts"
   },
   "keywords": [],
   "author": "",

@@ -24,6 +24,8 @@ central obstruction to a proof, and (c) lays out concrete next steps.
 | `omega-prover.ts` | Machine proof that omega(N) >= 4: exact support enumeration + the factor-chain prover |
 | `omega5-prover.ts` | **Machine proof that omega(N) >= 5** (Sylvester tier): window DFS over the unbounded families |
 | `omega-n-prover.ts` | The general engine: omega(N) >= K via recursive symbolic-prime resolution + per-support decisions |
+| `touchard.ts` | Machine verification of Touchard's theorem via exhaustive finite residue lemmas |
+| `REPORT.md` | The session report: results, method, and the located wall |
 | `test.ts` | Test suite (`npm test`) |
 
 ## The engine: searching by square part
