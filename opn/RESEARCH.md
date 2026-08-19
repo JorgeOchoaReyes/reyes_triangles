@@ -1,0 +1,283 @@
+# The Odd Perfect Number Problem
+
+> **Does there exist an odd number N with sigma(N) = 2N?**
+> (sigma = sum of all divisors, so a perfect number equals the sum of its
+> proper divisors: 6 = 1 + 2 + 3, 28 = 1 + 2 + 4 + 7 + 14, ...)
+
+Open for ~2300 years — it goes back to Euclid, and Sylvester called it a
+problem that "must have been present to the minds of mathematicians from the
+earliest times." Nobody has found an odd perfect number, and nobody has proved
+one cannot exist. This folder is a working toolkit that (a) re-derives the
+strongest *computational* style of evidence from scratch, (b) demonstrates the
+central obstruction to a proof, and (c) lays out concrete next steps.
+
+## What is in this folder
+
+| File | What it does |
+|---|---|
+| `sigma.ts` | Exact BigInt number theory: sigma, SPF sieve, Miller–Rabin, Pollard rho, integer roots |
+| `euler-sieve.ts` | **The main engine.** A complete search for OPNs indexed by their square part (see below) |
+| `brute.ts` | Assumption-free cross-check: sieves sigma(n) for every n up to a bound |
+| `constraints.ts` | Tests any candidate against the strongest published necessary conditions |
+| `omega-bounds.ts` | Machine-proves (exact rationals) lower bounds on omega(N) by smallest prime factor |
+| `smooth-prover.ts` | **The factor-chain prover.** Complete decision procedure: "is any perfect number B-smooth?" |
+| `omega-prover.ts` | Machine proof that omega(N) >= 4: exact support enumeration + the factor-chain prover |
+| `omega5-prover.ts` | **Machine proof that omega(N) >= 5** (Sylvester tier): window DFS over the unbounded families |
+| `omega-n-prover.ts` | The general engine: omega(N) >= K via recursive symbolic-prime resolution + per-support decisions |
+| `test.ts` | Test suite (`npm test`) |
+
+## The engine: searching by square part
+
+Euler proved every odd perfect number must factor as
+
+```
+N = q^k * m^2      q prime,  q ≡ 1 (mod 4),  k ≡ 1 (mod 4),  q ∤ m
+```
+
+(q^k is called the *Euler factor*.) Since sigma is multiplicative,
+sigma(N) = 2N forces
+
+```
+sigma(q^k) / q^k  =  2 m^2 / sigma(m^2)
+```
+
+The key observation making a complete search possible: the left-hand fraction
+is **already in lowest terms** (q cannot divide sigma(q^k) = 1 + q + ... + q^k,
+which is ≡ 1 mod q). So once m is fixed, reduce 2m^2/sigma(m^2) to lowest
+terms A/B — then the *only* candidate Euler factor is q^k = B with
+sigma(q^k) = A. One odd m, one O(1) verdict, no search over q or k at all.
+
+Consequences of a clean scan of all odd m ≤ M:
+
+1. No odd perfect number has square part m^2 with m ≤ M — for *any* Euler
+   factor, of any size.
+2. Since N = q^k m^2 > m^2, every odd perfect number exceeds M^2.
+
+Results obtained by this code (reproduce with the commands shown; timings
+from the run on 2026-08-19 that produced these claims):
+
+- `npm test` — sanity: sigma is exact, the brute sieve finds exactly
+  6, 28, 496, 8128 below 10^6, and the engine rediscovers Descartes' spoof.
+- `node opn/brute.ts --max 10000000` (2.8s) — **no odd perfect number below
+  10^7**, verified directly from the definition with no theory assumed.
+- `node opn/euler-sieve.ts --spoof --max 50000000` (1078s, 2.5 * 10^7 square
+  parts scanned, every possible Euler factor decided for each) —
+  **no odd perfect number has square part m^2 with m ≤ 5 * 10^7**, hence any
+  OPN exceeds m^2 * q^k > 1.25 * 10^16. (The published record is far
+  stronger — see below — but this is independently re-verified here, from
+  scratch, in under 20 minutes.)
+  Striking side result: across the whole scan there was **exactly one hit of
+  any kind — Descartes' 1638 spoof** at m = 3003. No other number even
+  *pretends* to be an odd perfect number in this range: Descartes-style
+  spoofs with a single fake prime are that rare.
+- `node opn/omega-bounds.ts` — a table of machine-proved theorems via exact
+  rational arithmetic, e.g. **an OPN not divisible by 3 has at least 7
+  distinct prime factors**; one with smallest prime factor ≥ 13 has at
+  least 41; smallest prime ≥ 59 forces at least 509 distinct primes. (Row 1
+  reproduces the classical omega ≥ 3.)
+
+## The factor-chain prover (`smooth-prover.ts`)
+
+Roadmap item 2 — implemented. This is a from-scratch, fully rigorous version
+of the method behind every modern published bound: a **complete decision
+procedure** for "does any perfect number exist whose prime factors all lie
+≤ B?" Two pillars make the search provably finite (no heuristic cutoffs):
+
+1. **Sigma smoothness.** If all primes of N lie in T, then each
+   sigma(p^e) divides sigma(N) = 2N, so its odd prime factors must lie in T.
+2. **A provable exponent cap.** If sigma(p^e) = (p^{e+1}-1)/(p-1) is
+   T-smooth then by the lifting-the-exponent lemma
+   sigma(p^e) ≤ C_p · (e+1) with C_p = prod over l in T of l^{v_l(p^{ord_l(p)}-1)}.
+   Combined with sigma(p^e) > p^e this bounds e explicitly.
+
+On top of that: Euler's form (one special prime q ≡ 1 mod 4 with exponent
+≡ 1 mod 4 and v_2(sigma(q^k)) = 1, all other exponents even), factor chains
+(choosing p^e forces the primes of sigma(p^e) into N), exact BigInt products
+at every decision, and two sound prunes (abundancy already exceeds 2 /
+can never reach 2). Deciding small primes first turned out to be the key
+optimization: it cut the B = 1000 search from 191,461,073 nodes (47s) to
+106,327 nodes (1.7s).
+
+**Validation**: run with `--even` (Euler constraints off, prime 2 allowed)
+the same engine must *find* the real perfect numbers — and it does: at
+B = 31 it returns exactly {6, 28, 496}, at B = 127 exactly
+{6, 28, 496, 8128}.
+
+**Theorems machine-proved by this code** (2026-08-19):
+
+| Statement | search tree | time |
+|---|---|---|
+| every odd perfect number has a prime factor > 100 | 516 nodes | 0.0s |
+| every odd perfect number has a prime factor > 1000 | 106,327 nodes | 1.7s |
+| every odd perfect number has a prime factor > 2000 | 7,708,586 nodes | 15.6s |
+| every odd perfect number has a prime factor > 3000 | 216,523,125 nodes | 106s |
+| every odd perfect number has a prime factor > 5000 | 11,609,331,208 nodes | 52 min |
+
+(The published record for this style of statement is far stronger — the
+largest prime factor exceeds 10^8, Goto–Ohno 2008 — but that proof leans on
+decades of specialized machinery; this one is 300 lines of TypeScript you
+can read, test, and re-run.)
+
+## Machine-proved: omega(N) >= 4 (`omega-prover.ts`)
+
+Composing the two engines yields a theorem about *unbounded* primes, not just
+smooth ones — an odd perfect number has **at least 4 distinct prime factors**
+(mechanizing results of the Peirce/Servais era):
+
+1. *Enumeration* (exact rationals): 2 = sigma(N)/N < prod p/(p-1), and for
+   omega <= 3 only three supports survive: {3,5,7}, {3,5,11}, {3,5,13}.
+   The enumerator proves its own completeness — each slot terminates because
+   the best completion is monotone decreasing in the next prime — and from
+   omega = 4 it *throws* on unbounded families like {3,5,7,p} rather than
+   silently truncating.
+2. *Decision*: all three supports are 13-smooth, and `proveSmooth(13, "odd")`
+   refutes 13-smoothness — in exactly 2 search nodes, because with sigma
+   chains confined to primes <= 13 the reachable abundancy provably tops out
+   below 2.
+
+Run it: `node opn/omega-prover.ts`.
+
+## Machine-proved: omega(N) >= 5 (`omega5-prover.ts`)
+
+The reduction below is now fully mechanized — **every odd perfect number has
+at least 5 distinct prime factors** (the Sylvester 1888 tier), proved by
+machine in half a second:
+
+1. *Enumerate omega = 4 candidates* (exact rationals): 76 bounded supports
+   (largest prime 251) and exactly three unbounded families
+   {3,5,7,p}, {3,5,11,p}, {3,5,13,p}.
+2. *Window DFS over each family*: each known prime contributes
+   h(r^e) = sigma(r^e)/r^e from a discrete ladder (parities fixed by Euler's
+   form), assigned either an exact value or a tail interval. At every leaf
+   the equation h(p^d) = 2 / h(3^a 5^b q^c) pins the unknown prime p into an
+   explicit finite range. The prover throws rather than truncates if a leaf
+   ever fails to bound p — a completed run is a complete proof. Outcome:
+   {3,5,7,p} dies entirely, and across all three families exactly ONE
+   support survives the windows: **{3, 5, 11, 137}**.
+3. *Decide the survivors*: every surviving support (and all omega <= 3
+   candidates) uses primes <= 251, and one factor-chain run refutes
+   251-smoothness in 2157 nodes — for all exponents at once, which is why
+   the windows never needed to bound the exponents they left as tails.
+
+Run it: `node opn/omega5-prover.ts` (`npm run opn:omega5`).
+
+A bonus lemma falls out of the same windows: h(3^2) h(5) h(7^2) =
+(13/9)(6/5)(57/49) = 2.0163 > 2 and (13/9)(31/25)(57/49) = 2.0836 > 2 cover
+every Euler-legal exponent pattern, so **no odd perfect number of any omega
+is divisible by 3^2 * 5 * 7^2's support** — {3,5,7} can never be a subset of
+an OPN's primes. Generalizing the window DFS to two symbolic primes would
+attack omega >= 6 (Gradstein 1925 tier); that is now the sharpest target.
+
+### The original reduction (kept for the record)
+
+For omega = 4, the support enumeration splits candidates into (i) finitely
+many bounded sets ({3,7,11,13}, {3,7,11,17}, ..., all with primes <= 31) and
+(ii) three families unbounded in the largest prime:
+{3,5,7,p}, {3,5,11,p}, {3,5,13,p}. The bounded sets have all primes < 260
+(the extreme case is {3,5,17,p} with (3/2)(5/4)(17/16) = 255/128, forcing
+p <= 251), so they are 3000-smooth and **already refuted** by the
+`smooth-prover` run above. And the first family
+falls to pure exact-rational "window" casework — worked example:
+
+*Family N = 3^a 5^b 7^c p^d (p > 7 prime).* Split on which prime is
+Euler's special prime (≡ 1 mod 4; only 5 or p qualify):
+
+- **p special** => a, b, c all even, so h = sigma/N satisfies
+  h(N) > h(3^2) h(5^2) h(7^2) = (13/9)(31/25)(57/49) = 22971/11025 > 2.
+  Abundancy exceeds 2 before p even enters. Contradiction.
+- **5 special** => a, c, d even and p >= 11, so h(p^d) < p/(p-1) <= 11/10,
+  forcing h(3^a 5^b 7^c) > 20/11. But c even gives h(7^c) >= 57/49, b >= 1
+  gives h(5^b) >= 6/5, and the requirement h(3^a 5^b 7^c) < 2 with
+  h(5^b)h(7^c) >= (6/5)(57/49) = 342/245 forces h(3^a) < 2*245/342 = 490/342
+  = 1.4327 < 13/9 = h(3^2). No even a >= 2 exists. Contradiction.
+
+So **omega >= 5 is equivalent to refuting {3,5,11,p} and {3,5,13,p}**. Those
+two resist the window argument (e.g. {3, 5^1, 11^2} has supremum abundancy
+(3/2)(6/5)(133/121) = 1.9793 < 2, so every even exponent a of 3 stays
+feasible, with a different forced p for each a). Killing them needs
+parametric sigma-chains: for a+1 an odd prime L, ord_5(3) = 4 and
+ord_11(3) = 5 show sigma(3^a) is coprime to 5 (and to 11 unless L = 5), so
+sigma(3^a) = (3^{a+1}-1)/2 would have to be a prime power p^w of the single
+remaining prime — a Mersenne-like primality condition interacting with the
+forced-fraction identity. This is exactly the wall where Sylvester's 1888
+proof gets hard, now isolated to two one-parameter families. Sharpest next
+target in this codebase.
+
+## The obstruction: Descartes spoofs
+
+In 1638 Descartes noticed that
+
+```
+D = 3^2 * 7^2 * 11^2 * 13^2 * 22021 = 198585576189
+```
+
+would be an odd perfect number **if 22021 were prime** (it is 19^2 * 61).
+Treating 22021 as a formal prime, the sigma product comes out to exactly 2D.
+Run `node opn/euler-sieve.ts --spoof --max 5000` and the engine rediscovers
+this at m = 3003: the forced Euler factor B = 22021 arrives with
+A = B + 1 = 22022, i.e. "perfect if prime."
+
+Why this matters strategically: the spoof satisfies the multiplicative
+structure of the problem perfectly. **Any disproof of odd perfect numbers must
+somewhere use the actual primality of the Euler factor** — no argument built
+purely from the sigma-product bookkeeping can succeed, because Descartes'
+example satisfies all that bookkeeping. (Voight found a spoof with a negative
+"prime," 2^2 * 3^2 * 7^2 * 5 * (-19)... family; a 2022 BYU group computation
+enumerated all spoofs with bounded shape — they are rare, which is itself
+weak evidence that genuine OPNs do not exist.)
+
+## Known necessary conditions (all checked by `constraints.ts`)
+
+Any odd perfect number N must satisfy at least:
+
+- **Euler form**: N = q^k m^2, q ≡ k ≡ 1 (mod 4), q ∤ m.
+- **Touchard 1953**: N ≡ 1 (mod 12) or N ≡ 9 (mod 36).
+- **Classical**: 105 ∤ N.
+- **Ochem & Rao 2012**: N > 10^1500, and Omega(N) ≥ 101 (prime factors with
+  multiplicity).
+- **Nielsen 2015**: omega(N) ≥ 10 (distinct prime factors); also
+  N < 2^(4^omega(N)) (Nielsen 2003), so bounding omega bounds N.
+- **Goto & Ohno 2008**: largest prime factor > 10^8.
+- **Iannucci 1999/2000**: second largest > 10^4, third largest > 10^2.
+
+The tension between these is the modern attack: lower bounds on N and on
+omega(N) rise (computation), while N < 2^(4^omega) caps how much room is left
+for each omega. If a proof ever shows omega(N) ≤ C for some absolute C, a
+finite computation finishes the problem.
+
+## Roadmap — concrete next steps, in increasing ambition
+
+1. **Push the sieve.** The Euler-form sieve here is O(M log M)-ish and
+   embarrassingly parallel in m. Segmenting the SPF sieve and sharding m
+   across workers would reach m ≤ 10^9 on one machine — an
+   independently-verified N > 10^18 with this exact code. (Not competitive
+   with Ochem–Rao's 10^1500, but the *method* here, factor-chain elimination,
+   is a small version of theirs.)
+2. ~~**Implement factor chains (the Ochem–Rao method).**~~ **Done — see
+   `smooth-prover.ts` above.** The natural continuation: relax "all primes
+   ≤ B" to "the k smallest primes are known, the rest constrained by
+   intervals" — that generalization is the full Ochem–Rao engine and would
+   attack omega(N) bounds and the 10^1500 lower bound directly. The missing
+   ingredient vs. this code: handling primes *outside* a fixed finite set via
+   interval arithmetic on the abundancy, plus case analysis when a sigma
+   factorization leaves a large rough cofactor.
+3. **Abundancy outlaws.** N is perfect iff sigma(N)/N = 2. Study which
+   rationals are "abundancy outlaws" (values sigma(n)/n never takes). If 2
+   restricted to odds were shown to be an outlaw, done. Partial results
+   exist for families like (2k+1)/k; the machinery in `sigma.ts` can
+   computationally map outlaw families.
+4. **Spoof classification.** Extend the BYU-style spoof enumeration: every
+   new spoof constrains what a disproof can look like, and a proof that
+   spoofs with > C factors cannot exist would combine with omega bounds.
+5. **The Dris direction.** Dris conjectured q^k < m for the Euler factor;
+   results relating q^k and m sharpen the sieve in (1) — e.g. any proven
+   bound q^k < f(m) would let the sieve certify larger N-free regions per m.
+
+## Honest status
+
+No odd perfect number was found (expected — the smallest is provably beyond
+10^1500 digits-wise... more precisely it exceeds 10^1500). No disproof either:
+that remains one of the oldest open problems in mathematics. What exists here
+is a correct, tested, reproducible framework that re-derives the classical
+computational results, exhibits the spoof obstruction concretely, and points
+at the factor-chain method as the next real step.

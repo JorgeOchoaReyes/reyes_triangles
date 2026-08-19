@@ -3,9 +3,18 @@
   "version": "1.0.0",
   "description": "",
   "main": "lib/index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon --exec ts-node index.ts"
+    "test": "node opn/test.ts",
+    "dev": "nodemon --exec ts-node index.ts",
+    "opn:brute": "node opn/brute.ts",
+    "opn:euler": "node opn/euler-sieve.ts",
+    "opn:spoof": "node opn/euler-sieve.ts --spoof",
+    "opn:check": "node opn/constraints.ts",
+    "opn:omega": "node opn/omega-bounds.ts",
+    "opn:smooth": "node opn/smooth-prover.ts",
+    "opn:omega4": "node opn/omega-prover.ts",
+    "opn:omega5": "node opn/omega5-prover.ts"
   },
   "keywords": [],
   "author": "",
