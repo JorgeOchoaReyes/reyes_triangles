@@ -109,6 +109,7 @@ B = 31 it returns exactly {6, 28, 496}, at B = 127 exactly
 | every odd perfect number has a prime factor > 1000 | 106,327 nodes | 1.7s |
 | every odd perfect number has a prime factor > 2000 | 7,708,586 nodes | 15.6s |
 | every odd perfect number has a prime factor > 3000 | 216,523,125 nodes | 106s |
+| every odd perfect number has a prime factor > 5000 | 11,609,331,208 nodes | 52 min |
 
 (The published record for this style of statement is far stronger — the
 largest prime factor exceeds 10^8, Goto–Ohno 2008 — but that proof leans on
