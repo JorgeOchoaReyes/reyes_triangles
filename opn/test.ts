@@ -17,6 +17,7 @@ import { analyzeCandidate } from "./constraints.ts";
 import { minOmegaForSmallestPrime } from "./omega-bounds.ts";
 import { proveSmooth, allowedExponents, exponentCap, primesUpTo } from "./smooth-prover.ts";
 import { candidateSupports } from "./omega-prover.ts";
+import { enumerateOmega4, refuteFamily, proveOmega5 } from "./omega5-prover.ts";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -152,6 +153,31 @@ test("omega prover: support enumeration is exact", () => {
   // from omega = 4 on, families like {3,5,7,p} are unbounded in p — the
   // enumeration must refuse rather than silently truncate
   assert.throws(() => candidateSupports(4), /unbounded family/);
+});
+
+test("omega-5 prover: omega = 4 candidate enumeration", () => {
+  const { boundedSets, families } = enumerateOmega4();
+  assert.deepEqual(families, [
+    [3, 5, 7],
+    [3, 5, 11],
+    [3, 5, 13],
+  ]);
+  const maxPrime = Math.max(...boundedSets.flat());
+  assert.equal(maxPrime, 251); // extreme case {3,5,17,251}
+  assert.ok(boundedSets.some((s) => s.join() === [3, 7, 11, 13].join()));
+  assert.ok(boundedSets.every((s) => s.length === 4));
+});
+
+test("omega-5 prover: family {3,5,7,p} dies entirely by windows", () => {
+  assert.deepEqual(refuteFamily([3, 5, 7], 5000), []);
+});
+
+test("omega-5 prover: full proof goes through", () => {
+  const r = proveOmega5();
+  assert.equal(r.proved, true);
+  assert.equal(r.bStar, 251);
+  assert.ok(r.familySupports.length > 0); // windows alone don't kill everything
+  assert.ok(r.familySupports.every((s) => Math.max(...s) <= 251));
 });
 
 console.log(`\n${passed} tests passed.`);

@@ -13,7 +13,8 @@
     "opn:check": "node opn/constraints.ts",
     "opn:omega": "node opn/omega-bounds.ts",
     "opn:smooth": "node opn/smooth-prover.ts",
-    "opn:omega4": "node opn/omega-prover.ts"
+    "opn:omega4": "node opn/omega-prover.ts",
+    "opn:omega5": "node opn/omega5-prover.ts"
   },
   "keywords": [],
   "author": "",

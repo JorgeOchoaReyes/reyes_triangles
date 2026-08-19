@@ -39,4 +39,5 @@ npm run opn:check     # constraint report for a candidate (default: Descartes' s
 npm run opn:omega     # machine-proved omega(N) lower bounds by smallest prime factor
 npm run opn:smooth    # factor-chain prover: no odd perfect number is B-smooth
 npm run opn:omega4    # machine proof that omega(N) >= 4
+npm run opn:omega5    # machine proof that omega(N) >= 5 (Sylvester tier)
 ```

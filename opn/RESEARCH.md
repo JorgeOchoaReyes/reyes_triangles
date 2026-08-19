@@ -22,6 +22,7 @@ central obstruction to a proof, and (c) lays out concrete next steps.
 | `omega-bounds.ts` | Machine-proves (exact rationals) lower bounds on omega(N) by smallest prime factor |
 | `smooth-prover.ts` | **The factor-chain prover.** Complete decision procedure: "is any perfect number B-smooth?" |
 | `omega-prover.ts` | Machine proof that omega(N) >= 4: exact support enumeration + the factor-chain prover |
+| `omega5-prover.ts` | **Machine proof that omega(N) >= 5** (Sylvester tier): window DFS over the unbounded families |
 | `test.ts` | Test suite (`npm test`) |
 
 ## The engine: searching by square part
@@ -135,7 +136,38 @@ smooth ones — an odd perfect number has **at least 4 distinct prime factors**
 
 Run it: `node opn/omega-prover.ts`.
 
-### The road to omega >= 5 — a precise reduction
+## Machine-proved: omega(N) >= 5 (`omega5-prover.ts`)
+
+The reduction below is now fully mechanized — **every odd perfect number has
+at least 5 distinct prime factors** (the Sylvester 1888 tier), proved by
+machine in half a second:
+
+1. *Enumerate omega = 4 candidates* (exact rationals): 76 bounded supports
+   (largest prime 251) and exactly three unbounded families
+   {3,5,7,p}, {3,5,11,p}, {3,5,13,p}.
+2. *Window DFS over each family*: each known prime contributes
+   h(r^e) = sigma(r^e)/r^e from a discrete ladder (parities fixed by Euler's
+   form), assigned either an exact value or a tail interval. At every leaf
+   the equation h(p^d) = 2 / h(3^a 5^b q^c) pins the unknown prime p into an
+   explicit finite range. The prover throws rather than truncates if a leaf
+   ever fails to bound p — a completed run is a complete proof. Outcome:
+   {3,5,7,p} dies entirely, and across all three families exactly ONE
+   support survives the windows: **{3, 5, 11, 137}**.
+3. *Decide the survivors*: every surviving support (and all omega <= 3
+   candidates) uses primes <= 251, and one factor-chain run refutes
+   251-smoothness in 2157 nodes — for all exponents at once, which is why
+   the windows never needed to bound the exponents they left as tails.
+
+Run it: `node opn/omega5-prover.ts` (`npm run opn:omega5`).
+
+A bonus lemma falls out of the same windows: h(3^2) h(5) h(7^2) =
+(13/9)(6/5)(57/49) = 2.0163 > 2 and (13/9)(31/25)(57/49) = 2.0836 > 2 cover
+every Euler-legal exponent pattern, so **no odd perfect number of any omega
+is divisible by 3^2 * 5 * 7^2's support** — {3,5,7} can never be a subset of
+an OPN's primes. Generalizing the window DFS to two symbolic primes would
+attack omega >= 6 (Gradstein 1925 tier); that is now the sharpest target.
+
+### The original reduction (kept for the record)
 
 For omega = 4, the support enumeration splits candidates into (i) finitely
 many bounded sets ({3,7,11,13}, {3,7,11,17}, ..., all with primes <= 31) and
