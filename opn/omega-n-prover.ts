@@ -47,7 +47,21 @@ interface Frac {
 const F = (n: bigint, d: bigint): Frac => ({ n, d });
 const ONE = F(1n, 1n);
 const TWO = F(2n, 1n);
-const mul = (a: Frac, b: Frac): Frac => F(a.n * b.n, a.d * b.d);
+const gcdB = (a: bigint, b: bigint): bigint => {
+  while (b) {
+    const t = a % b;
+    a = b;
+    b = t;
+  }
+  return a;
+};
+// reduce on every multiply: deep recursions otherwise balloon the BigInts
+const mul = (a: Frac, b: Frac): Frac => {
+  const n = a.n * b.n;
+  const d = a.d * b.d;
+  const g = gcdB(n, d);
+  return F(n / g, d / g);
+};
 const cmp = (a: Frac, b: Frac): number => {
   const x = a.n * b.d - b.n * a.d;
   return x < 0n ? -1 : x > 0n ? 1 : 0;
@@ -172,10 +186,13 @@ export function resolveTask(task: Task, emit: (support: number[]) => void): void
         if (cmp(env, target) < 0) break; // fails for all larger r too
         if (r > MAX_LEAF_PRIME) throw new Error(`symbolic prime range too wide in task {${concrete}}`);
         if (special && r % 4 !== 1) continue;
-        // branch r's exponent ladder: exact values, then one tail interval
+        // branch r's exponent ladder: exact values, then one tail interval.
+        // For large r the whole ladder spans an interval of width ~1/r^3, so
+        // exact splitting is pointless — use the envelope alone (steps = 0).
+        const steps = r < 150 ? EXACT_STEPS : 0;
         let e = start;
         let dead = false;
-        for (let k = 0; k < EXACT_STEPS; k++) {
+        for (let k = 0; k < steps; k++) {
           const h = hExact(r, e);
           if (cmp(mul(lo, h), TWO) >= 0) {
             dead = true;
