@@ -190,6 +190,10 @@ export function resolveTask(task: Task, emit: (support: number[]) => void): void
         // For large r the whole ladder spans an interval of width ~1/r^3, so
         // exact splitting is pointless — use the envelope alone (steps = 0).
         const steps = r < 150 ? EXACT_STEPS : 0;
+        // the remaining-1 symbolic primes are all > r, so each contributes
+        // less than hSup(r): a sound cap on what they can still add
+        let restMax = ONE;
+        for (let i = 0; i < remaining - 1; i++) restMax = mul(restMax, hSup(r));
         let e = start;
         let dead = false;
         for (let k = 0; k < steps; k++) {
@@ -198,12 +202,16 @@ export function resolveTask(task: Task, emit: (support: number[]) => void): void
             dead = true;
             break; // larger exponents of r are dead too
           }
+          if (cmp(mul(mul(hi, h), restMax), TWO) < 0) {
+            e += step;
+            continue; // undershoot: larger e may still reach 2
+          }
           chosen.push(r);
           resolveSym(symIdx + 1, r, mul(lo, h), mul(hi, h), chosen);
           chosen.pop();
           e += step;
         }
-        if (!dead) {
+        if (!dead && cmp(mul(mul(hi, hSup(r)), restMax), TWO) >= 0) {
           chosen.push(r);
           resolveSym(symIdx + 1, r, mul(lo, hExact(r, e)), mul(hi, hSup(r)), chosen);
           chosen.pop();
@@ -216,6 +224,15 @@ export function resolveTask(task: Task, emit: (support: number[]) => void): void
       const { start } = ladder(r, null);
       return hExact(r, start);
     });
+    // symbolic primes are all > lastConcrete, so their sup contribution is
+    // bounded by (p'/(p'-1))^nSym with p' the next prime after lastConcrete
+    let symMax = ONE;
+    {
+      const pNext = nextPrime(lastConcrete);
+      for (let i = 0; i < nSym; i++) symMax = mul(symMax, hSup(pNext));
+    }
+    const sups = concrete.map((r) => hSup(r));
+
     const dfs = (idx: number, lo: Frac, hi: Frac) => {
       if (idx === concrete.length) {
         resolveSym(0, lastConcrete, lo, hi, []);
@@ -224,15 +241,27 @@ export function resolveTask(task: Task, emit: (support: number[]) => void): void
       const r = concrete[idx];
       const { start, step } = ladder(r, null);
       let minRem = ONE;
-      for (let j = idx + 1; j < concrete.length; j++) minRem = mul(minRem, mins[j]);
+      let maxRem = symMax;
+      for (let j = idx + 1; j < concrete.length; j++) {
+        minRem = mul(minRem, mins[j]);
+        maxRem = mul(maxRem, sups[j]);
+      }
       let e = start;
       for (let k = 0; k < EXACT_STEPS; k++) {
         const h = hExact(r, e);
-        if (cmp(mul(mul(lo, h), minRem), TWO) >= 0) return; // larger e dead too
+        if (cmp(mul(mul(lo, h), minRem), TWO) >= 0) return; // overshoot: larger e dead too
+        // undershoot: even the maximal completion cannot reach 2 — but larger
+        // e raise h, so skip this value and keep climbing
+        if (cmp(mul(mul(hi, h), maxRem), TWO) < 0) {
+          e += step;
+          continue;
+        }
         dfs(idx + 1, mul(lo, h), mul(hi, h));
         e += step;
       }
-      dfs(idx + 1, mul(lo, hExact(r, e)), mul(hi, hSup(r)));
+      if (cmp(mul(mul(hi, hSup(r)), maxRem), TWO) >= 0) {
+        dfs(idx + 1, mul(lo, hExact(r, e)), mul(hi, hSup(r)));
+      }
     };
     dfs(0, ONE, ONE);
   }
@@ -271,7 +300,12 @@ export function proveOmegaAtLeast(k: number, log: (msg: string) => void = () => 
   }
 
   const resolvedSupports: number[][] = [];
+  let taskIdx = 0;
   for (const task of allTasks) {
+    taskIdx++;
+    if (taskIdx % 10 === 0 || task.nSym >= 2) {
+      log(`  task ${taskIdx}/${allTasks.length}: {${task.concrete}} + ${task.nSym} symbolic`);
+    }
     resolveTask(task, (sup) => {
       const key = sup.join(",");
       if (!seen.has(key)) {
