@@ -19,6 +19,7 @@ central obstruction to a proof, and (c) lays out concrete next steps.
 | `euler-sieve.ts` | **The main engine.** A complete search for OPNs indexed by their square part (see below) |
 | `brute.ts` | Assumption-free cross-check: sieves sigma(n) for every n up to a bound |
 | `constraints.ts` | Tests any candidate against the strongest published necessary conditions |
+| `omega-bounds.ts` | Machine-proves (exact rationals) lower bounds on omega(N) by smallest prime factor |
 | `test.ts` | Test suite (`npm test`) |
 
 ## The engine: searching by square part
@@ -48,16 +49,27 @@ Consequences of a clean scan of all odd m ≤ M:
    factor, of any size.
 2. Since N = q^k m^2 > m^2, every odd perfect number exceeds M^2.
 
-Results obtained by this code (reproduce with the commands shown):
+Results obtained by this code (reproduce with the commands shown; timings
+from the run on 2026-08-19 that produced these claims):
 
 - `npm test` — sanity: sigma is exact, the brute sieve finds exactly
   6, 28, 496, 8128 below 10^6, and the engine rediscovers Descartes' spoof.
-- `node opn/brute.ts --max 10000000` — **no odd perfect number below 10^7**,
-  verified directly from the definition with no theory assumed.
-- `node opn/euler-sieve.ts --max 10000000` — **no odd perfect number has odd
-  part m ≤ 10^7**, hence any OPN exceeds 10^14. (The published record is far
-  stronger — see below — but this is independently re-verified here, from
-  scratch, in minutes.)
+- `node opn/brute.ts --max 10000000` (2.8s) — **no odd perfect number below
+  10^7**, verified directly from the definition with no theory assumed.
+- `node opn/euler-sieve.ts --spoof --max 10000000` (187s, 5 * 10^6 square
+  parts scanned, every possible Euler factor decided for each) —
+  **no odd perfect number has square part m^2 with m ≤ 10^7**, hence any OPN
+  exceeds 10^14. (The published record is far stronger — see below — but
+  this is independently re-verified here, from scratch, in minutes.)
+  Striking side result: across the whole scan there was **exactly one hit of
+  any kind — Descartes' 1638 spoof** at m = 3003. No other number even
+  *pretends* to be an odd perfect number in this range: Descartes-style
+  spoofs with a single fake prime are that rare.
+- `node opn/omega-bounds.ts` — a table of machine-proved theorems via exact
+  rational arithmetic, e.g. **an OPN not divisible by 3 has at least 7
+  distinct prime factors**; one with smallest prime factor ≥ 13 has at
+  least 41; smallest prime ≥ 59 forces at least 509 distinct primes. (Row 1
+  reproduces the classical omega ≥ 3.)
 
 ## The obstruction: Descartes spoofs
 

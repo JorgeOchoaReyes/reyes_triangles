@@ -14,6 +14,7 @@ import {
 import { eulerSieve } from "./euler-sieve.ts";
 import { bruteForcePerfect } from "./brute.ts";
 import { analyzeCandidate } from "./constraints.ts";
+import { minOmegaForSmallestPrime } from "./omega-bounds.ts";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -97,6 +98,15 @@ test("constraint analyzer confirms an even perfect number's sigma", () => {
   const report = analyzeCandidate(33550336n); // 2^12 * 8191
   assert.equal(report.isPerfect, true);
   assert.equal(report.checks.find((c) => c.name === "N is odd")?.passed, false);
+});
+
+test("omega lower bounds match classical elementary results", () => {
+  // (3/2)(5/4) = 15/8 < 2 but (3/2)(5/4)(7/6) = 35/16 > 2:
+  assert.equal(minOmegaForSmallestPrime(3n).k, 3);
+  // An OPN not divisible by 3 needs at least 7 distinct primes:
+  const r5 = minOmegaForSmallestPrime(5n);
+  assert.equal(r5.k, 7);
+  assert.deepEqual(r5.primes, [5n, 7n, 11n, 13n, 17n, 19n, 23n]);
 });
 
 console.log(`\n${passed} tests passed.`);

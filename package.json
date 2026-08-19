@@ -10,7 +10,8 @@
     "opn:brute": "node opn/brute.ts",
     "opn:euler": "node opn/euler-sieve.ts",
     "opn:spoof": "node opn/euler-sieve.ts --spoof",
-    "opn:check": "node opn/constraints.ts"
+    "opn:check": "node opn/constraints.ts",
+    "opn:omega": "node opn/omega-bounds.ts"
   },
   "keywords": [],
   "author": "",

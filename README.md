@@ -36,4 +36,5 @@ npm run opn:brute     # brute-force perfect number search (default 10^7)
 npm run opn:euler     # complete Euler-form sieve by square part (default 10^7)
 npm run opn:spoof     # same sieve, also reporting Descartes spoofs
 npm run opn:check     # constraint report for a candidate (default: Descartes' spoof)
+npm run opn:omega     # machine-proved omega(N) lower bounds by smallest prime factor
 ```
