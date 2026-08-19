@@ -58,11 +58,12 @@ from the run on 2026-08-19 that produced these claims):
   6, 28, 496, 8128 below 10^6, and the engine rediscovers Descartes' spoof.
 - `node opn/brute.ts --max 10000000` (2.8s) — **no odd perfect number below
   10^7**, verified directly from the definition with no theory assumed.
-- `node opn/euler-sieve.ts --spoof --max 10000000` (187s, 5 * 10^6 square
+- `node opn/euler-sieve.ts --spoof --max 50000000` (1078s, 2.5 * 10^7 square
   parts scanned, every possible Euler factor decided for each) —
-  **no odd perfect number has square part m^2 with m ≤ 10^7**, hence any OPN
-  exceeds 10^14. (The published record is far stronger — see below — but
-  this is independently re-verified here, from scratch, in minutes.)
+  **no odd perfect number has square part m^2 with m ≤ 5 * 10^7**, hence any
+  OPN exceeds m^2 * q^k > 1.25 * 10^16. (The published record is far
+  stronger — see below — but this is independently re-verified here, from
+  scratch, in under 20 minutes.)
   Striking side result: across the whole scan there was **exactly one hit of
   any kind — Descartes' 1638 spoof** at m = 3003. No other number even
   *pretends* to be an odd perfect number in this range: Descartes-style
@@ -131,10 +132,42 @@ smooth ones — an odd perfect number has **at least 4 distinct prime factors**
    chains confined to primes <= 13 the reachable abundancy provably tops out
    below 2.
 
-Run it: `node opn/omega-prover.ts`. Extending to omega >= 5 requires the
-parametric chain analysis for the unbounded families (sigma(3^a) would have
-to factor over {5, 7, p} with p symbolic) — the precise wall where the
-classical proofs get hard. That is the sharpest next target in this codebase.
+Run it: `node opn/omega-prover.ts`.
+
+### The road to omega >= 5 — a precise reduction
+
+For omega = 4, the support enumeration splits candidates into (i) finitely
+many bounded sets ({3,7,11,13}, {3,7,11,17}, ..., all with primes <= 31) and
+(ii) three families unbounded in the largest prime:
+{3,5,7,p}, {3,5,11,p}, {3,5,13,p}. The bounded sets have all primes < 260
+(the extreme case is {3,5,17,p} with (3/2)(5/4)(17/16) = 255/128, forcing
+p <= 251), so they are 3000-smooth and **already refuted** by the
+`smooth-prover` run above. And the first family
+falls to pure exact-rational "window" casework — worked example:
+
+*Family N = 3^a 5^b 7^c p^d (p > 7 prime).* Split on which prime is
+Euler's special prime (≡ 1 mod 4; only 5 or p qualify):
+
+- **p special** => a, b, c all even, so h = sigma/N satisfies
+  h(N) > h(3^2) h(5^2) h(7^2) = (13/9)(31/25)(57/49) = 22971/11025 > 2.
+  Abundancy exceeds 2 before p even enters. Contradiction.
+- **5 special** => a, c, d even and p >= 11, so h(p^d) < p/(p-1) <= 11/10,
+  forcing h(3^a 5^b 7^c) > 20/11. But c even gives h(7^c) >= 57/49, b >= 1
+  gives h(5^b) >= 6/5, and the requirement h(3^a 5^b 7^c) < 2 with
+  h(5^b)h(7^c) >= (6/5)(57/49) = 342/245 forces h(3^a) < 2*245/342 = 490/342
+  = 1.4327 < 13/9 = h(3^2). No even a >= 2 exists. Contradiction.
+
+So **omega >= 5 is equivalent to refuting {3,5,11,p} and {3,5,13,p}**. Those
+two resist the window argument (e.g. {3, 5^1, 11^2} has supremum abundancy
+(3/2)(6/5)(133/121) = 1.9793 < 2, so every even exponent a of 3 stays
+feasible, with a different forced p for each a). Killing them needs
+parametric sigma-chains: for a+1 an odd prime L, ord_5(3) = 4 and
+ord_11(3) = 5 show sigma(3^a) is coprime to 5 (and to 11 unless L = 5), so
+sigma(3^a) = (3^{a+1}-1)/2 would have to be a prime power p^w of the single
+remaining prime — a Mersenne-like primality condition interacting with the
+forced-fraction identity. This is exactly the wall where Sylvester's 1888
+proof gets hard, now isolated to two one-parameter families. Sharpest next
+target in this codebase.
 
 ## The obstruction: Descartes spoofs
 
