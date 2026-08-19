@@ -18,6 +18,8 @@ import { minOmegaForSmallestPrime } from "./omega-bounds.ts";
 import { proveSmooth, allowedExponents, exponentCap, primesUpTo } from "./smooth-prover.ts";
 import { candidateSupports } from "./omega-prover.ts";
 import { enumerateOmega4, refuteFamily, proveOmega5 } from "./omega5-prover.ts";
+import { proveSmoothForPrimes } from "./smooth-prover.ts";
+import { enumerateTasks, proveOmegaAtLeast } from "./omega-n-prover.ts";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -178,6 +180,27 @@ test("omega-5 prover: full proof goes through", () => {
   assert.equal(r.bStar, 251);
   assert.ok(r.familySupports.length > 0); // windows alone don't kill everything
   assert.ok(r.familySupports.every((s) => Math.max(...s) <= 251));
+});
+
+test("proveSmoothForPrimes decides arbitrary prime sets", () => {
+  // even-mode set {2,3} admits exactly 6 = 2*3
+  assert.deepEqual(proveSmoothForPrimes([3], "even").solutions, [6n]);
+  // odd support {3,5,11,137} (the omega-5 sole survivor) is impossible
+  assert.deepEqual(proveSmoothForPrimes([3, 5, 11, 137], "odd").solutions, []);
+});
+
+test("general omega prover matches the dedicated omega-5 proof", () => {
+  const { pure, tasks } = enumerateTasks(4);
+  assert.equal(pure.length, 76);
+  assert.deepEqual(tasks.map((t) => t.concrete), [
+    [3, 5, 7],
+    [3, 5, 11],
+    [3, 5, 13],
+  ]);
+  assert.ok(tasks.every((t) => t.nSym === 1));
+  const r = proveOmegaAtLeast(5);
+  assert.equal(r.proved, true);
+  assert.deepEqual(r.resolvedSupports, [[3, 5, 11, 137]]);
 });
 
 console.log(`\n${passed} tests passed.`);

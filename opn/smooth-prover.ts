@@ -243,8 +243,25 @@ export interface ProverResult {
  * mode "even" is the validation mode over all N.
  */
 export function proveSmooth(B: number, mode: "odd" | "even"): ProverResult {
-  const all = primesUpTo(B);
-  const odd = all.filter((p) => p !== 2);
+  return proveSmoothForPrimes(primesUpTo(B).filter((p) => p !== 2), mode, B);
+}
+
+/**
+ * Same decision over an ARBITRARY finite set of odd primes: does any perfect
+ * number exist whose prime factors all lie in the set? (In "even" mode the
+ * prime 2 is additionally allowed as a factor of N.) The LTE exponent-cap
+ * argument is valid for any finite smoothness set, so this is exactly as
+ * rigorous as the contiguous version — and lets callers decide a single
+ * candidate support in microseconds instead of sweeping every prime below
+ * its maximum.
+ */
+export function proveSmoothForPrimes(
+  oddPrimes: number[],
+  mode: "odd" | "even",
+  B?: number
+): ProverResult {
+  const odd = oddPrimes;
+  const all = [2, ...odd];
   const state: SearchState = { nodes: 0, solutions: [] };
 
   const runDfs = (primesUsed: number[], lists: Map<number, ExpOption[]>, mustUse: Set<number>) => {
@@ -265,7 +282,7 @@ export function proveSmooth(B: number, mode: "odd" | "even"): ProverResult {
     const lists = new Map<number, ExpOption[]>();
     for (const p of T) lists.set(p, allowedExponents(p, T, "even-mode"));
     runDfs(T, lists, new Set());
-    return { B, mode, solutions: state.solutions.map((s) => s.n).sort((a, b) => (a < b ? -1 : 1)), nodes: state.nodes };
+    return { B: B ?? Math.max(2, ...odd), mode, solutions: state.solutions.map((s) => s.n).sort((a, b) => (a < b ? -1 : 1)), nodes: state.nodes };
   }
 
   // odd mode: T never contains 2 as a factor of N, but sigma parts may use
@@ -284,7 +301,7 @@ export function proveSmooth(B: number, mode: "odd" | "even"): ProverResult {
     runDfs(odd, lists, new Set([q]));
   }
   return {
-    B,
+    B: B ?? Math.max(2, ...odd),
     mode,
     solutions: state.solutions.map((s) => s.n).sort((a, b) => (a < b ? -1 : 1)),
     nodes: state.nodes,

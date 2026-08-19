@@ -23,6 +23,7 @@ central obstruction to a proof, and (c) lays out concrete next steps.
 | `smooth-prover.ts` | **The factor-chain prover.** Complete decision procedure: "is any perfect number B-smooth?" |
 | `omega-prover.ts` | Machine proof that omega(N) >= 4: exact support enumeration + the factor-chain prover |
 | `omega5-prover.ts` | **Machine proof that omega(N) >= 5** (Sylvester tier): window DFS over the unbounded families |
+| `omega-n-prover.ts` | The general engine: omega(N) >= K via recursive symbolic-prime resolution + per-support decisions |
 | `test.ts` | Test suite (`npm test`) |
 
 ## The engine: searching by square part
