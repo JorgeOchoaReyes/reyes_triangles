@@ -82,22 +82,36 @@ function multiplicativeOrder(p: bigint, l: bigint): bigint {
 /**
  * Provable upper bound on e such that sigma(p^e) can be T-smooth
  * (T = the full prime set including 2). See pillar 2 above.
+ * The per-(p, l) contribution l^{v_l(p^{d_l}-1)} is support-independent, so
+ * it is memoized — callers deciding millions of small prime sets reuse it.
  */
+const capTermCache = new Map<string, bigint>();
+
+function capTerm(p: number, l: number): bigint {
+  const key = `${p},${l}`;
+  const hit = capTermCache.get(key);
+  if (hit !== undefined) return hit;
+  const P = BigInt(p);
+  const L = BigInt(l);
+  const d = l === 2 ? 2n : multiplicativeOrder(P, L);
+  // v = v_l(p^d - 1): largest k with p^d ≡ 1 (mod l^k)
+  let mod = L;
+  let v = 0;
+  while (powMod(P, d, mod) === 1n) {
+    v++;
+    mod *= L;
+  }
+  const term = L ** BigInt(v);
+  capTermCache.set(key, term);
+  return term;
+}
+
 export function exponentCap(p: number, T: number[]): number {
   const P = BigInt(p);
   let C = 1n;
   for (const l of T) {
     if (l === p) continue;
-    const L = BigInt(l);
-    const d = l === 2 ? 2n : multiplicativeOrder(P, L);
-    // v = v_l(p^d - 1): largest k with p^d ≡ 1 (mod l^k)
-    let mod = L;
-    let v = 0;
-    while (powMod(P, d, mod) === 1n) {
-      v++;
-      mod *= L;
-    }
-    C *= L ** BigInt(v);
+    C *= capTerm(p, l);
   }
   let e = 0;
   let pe = 1n;
@@ -258,7 +272,8 @@ export function proveSmooth(B: number, mode: "odd" | "even"): ProverResult {
 export function proveSmoothForPrimes(
   oddPrimes: number[],
   mode: "odd" | "even",
-  B?: number
+  B?: number,
+  exactSupport = false
 ): ProverResult {
   const odd = oddPrimes;
   const all = [2, ...odd];
@@ -287,6 +302,37 @@ export function proveSmoothForPrimes(
 
   // odd mode: T never contains 2 as a factor of N, but sigma parts may use
   // one factor of 2 (via the special prime); smoothness is over {2} u odd.
+  //
+  // With exactSupport (every prime in the set MUST divide N — valid when the
+  // caller separately enumerates all smaller supports), two exact rejections
+  // decide most candidates without building any exponent lists:
+  //   (a) Euler's theorem requires a special prime ≡ 1 (mod 4);
+  //   (b) minimal Euler-legal exponents (special e = 1, others e = 2)
+  //       already give sigma(N)/N its least value; if that exceeds 2 for
+  //       every choice of special prime, no exponent assignment reaches 2.
+  if (exactSupport) {
+    const eligible = odd.filter((p) => p % 4 === 1);
+    if (eligible.length === 0) {
+      return { B: B ?? Math.max(2, ...odd), mode, solutions: [], nodes: 0, specialTried: 0 };
+    }
+    let baseN = 1n; // prod (p^2 + p + 1)
+    let baseD = 1n; // prod p^2
+    for (const p of odd) {
+      const P = BigInt(p);
+      baseN *= P * P + P + 1n;
+      baseD *= P * P;
+    }
+    const anyReachable = eligible.some((q) => {
+      const Q = BigInt(q);
+      // swap q's factor (q^2+q+1)/q^2 for (q+1)/q: min = base * q(q+1)/(q^2+q+1)
+      const n = baseN * Q * (Q + 1n);
+      const d = baseD * (Q * Q + Q + 1n);
+      return n <= 2n * d; // minimal abundancy can still be <= 2
+    });
+    if (!anyReachable) {
+      return { B: B ?? Math.max(2, ...odd), mode, solutions: [], nodes: 0, specialTried: 0 };
+    }
+  }
   const T = [2, ...odd];
   const evenLists = new Map<number, ExpOption[]>();
   for (const p of odd) evenLists.set(p, allowedExponents(p, T, "nonspecial"));
@@ -298,7 +344,7 @@ export function proveSmoothForPrimes(
     tried++;
     const lists = new Map(evenLists);
     lists.set(q, specialList);
-    runDfs(odd, lists, new Set([q]));
+    runDfs(odd, lists, exactSupport ? new Set(odd) : new Set([q]));
   }
   return {
     B: B ?? Math.max(2, ...odd),

@@ -23,13 +23,13 @@ import { enumerateTasks, proveOmegaAtLeast } from "./omega-n-prover.ts";
 import { verifyTouchard } from "./touchard.ts";
 
 let passed = 0;
-function test(name: string, fn: () => void) {
-  fn();
+async function test(name: string, fn: () => void | Promise<void>) {
+  await fn();
   passed++;
   console.log(`  ok: ${name}`);
 }
 
-test("sigma on known values", () => {
+await test("sigma on known values", () => {
   const spf = spfSieve(10000);
   const sigma = (n: number) => sigmaFromFactors(factorizeWithSieve(n, spf));
   assert.equal(sigma(1), 1n);
@@ -41,47 +41,47 @@ test("sigma on known values", () => {
   assert.equal(sigma(9973), 9974n); // prime
 });
 
-test("sigma of squares via power parameter", () => {
+await test("sigma of squares via power parameter", () => {
   const spf = spfSieve(100);
   // sigma(15^2) = sigma(225) = (1+3+9)(1+5+25) = 13 * 31 = 403
   assert.equal(sigmaFromFactors(factorizeWithSieve(15, spf), 2), 403n);
 });
 
-test("sigmaBig with Pollard rho factoring", () => {
+await test("sigmaBig with Pollard rho factoring", () => {
   assert.equal(sigmaBig(2n ** 61n - 1n), 2n ** 61n); // Mersenne prime
   assert.equal(sigmaBig(1000000007n * 1000000009n), 1000000008n * 1000000010n);
 });
 
-test("Miller-Rabin primality", () => {
+await test("Miller-Rabin primality", () => {
   assert.equal(isPrimeBig(2n ** 61n - 1n), true);
   assert.equal(isPrimeBig(22021n), false); // Descartes' fake prime = 19^2 * 61
   assert.equal(isPrimeBig(1n), false);
   assert.equal(isPrimeBig(5n), true);
 });
 
-test("integer roots", () => {
+await test("integer roots", () => {
   assert.equal(iroot(3n ** 10n, 10), 3n);
   assert.equal(iroot(3n ** 10n - 1n, 10), 2n);
   assert.equal(iroot(10n ** 14n, 2), 10n ** 7n);
 });
 
-test("factorizeBig recovers Descartes' fake prime", () => {
+await test("factorizeBig recovers Descartes' fake prime", () => {
   assert.deepEqual(factorizeBig(22021n), [
     [19n, 2],
     [61n, 1],
   ]);
 });
 
-test("brute force finds exactly the even perfect numbers below 10^6", () => {
+await test("brute force finds exactly the even perfect numbers below 10^6", () => {
   assert.deepEqual(bruteForcePerfect(1_000_000), [6, 28, 496, 8128]);
 });
 
-test("Euler sieve: no odd perfect number with square part <= (10^5)^2", () => {
+await test("Euler sieve: no odd perfect number with square part <= (10^5)^2", () => {
   const hits = eulerSieve(100_000, false);
   assert.deepEqual(hits, []);
 });
 
-test("Euler sieve rediscovers Descartes' 1638 spoof", () => {
+await test("Euler sieve rediscovers Descartes' 1638 spoof", () => {
   const hits = eulerSieve(5000, true);
   const spoofs = hits.filter((h) => h.kind === "SPOOF");
   assert.ok(
@@ -91,7 +91,7 @@ test("Euler sieve rediscovers Descartes' 1638 spoof", () => {
   assert.equal(hits.filter((h) => h.kind === "PERFECT").length, 0);
 });
 
-test("constraint analyzer flags Descartes' spoof as not perfect", () => {
+await test("constraint analyzer flags Descartes' spoof as not perfect", () => {
   const descartes = 3n ** 2n * 7n ** 2n * 11n ** 2n * 13n ** 2n * 22021n;
   const report = analyzeCandidate(descartes);
   assert.equal(report.isPerfect, false);
@@ -100,13 +100,13 @@ test("constraint analyzer flags Descartes' spoof as not perfect", () => {
   assert.equal(touchard?.passed, true);
 });
 
-test("constraint analyzer confirms an even perfect number's sigma", () => {
+await test("constraint analyzer confirms an even perfect number's sigma", () => {
   const report = analyzeCandidate(33550336n); // 2^12 * 8191
   assert.equal(report.isPerfect, true);
   assert.equal(report.checks.find((c) => c.name === "N is odd")?.passed, false);
 });
 
-test("omega lower bounds match classical elementary results", () => {
+await test("omega lower bounds match classical elementary results", () => {
   // (3/2)(5/4) = 15/8 < 2 but (3/2)(5/4)(7/6) = 35/16 > 2:
   assert.equal(minOmegaForSmallestPrime(3n).k, 3);
   // An OPN not divisible by 3 needs at least 7 distinct primes:
@@ -115,7 +115,7 @@ test("omega lower bounds match classical elementary results", () => {
   assert.deepEqual(r5.primes, [5n, 7n, 11n, 13n, 17n, 19n, 23n]);
 });
 
-test("smooth prover exponent caps are finite and correct", () => {
+await test("smooth prover exponent caps are finite and correct", () => {
   const T = [2, ...primesUpTo(100).filter((p) => p !== 2)];
   const cap = exponentCap(3, T);
   assert.ok(cap >= 4 && cap < 10000, `cap = ${cap}`);
@@ -128,24 +128,24 @@ test("smooth prover exponent caps are finite and correct", () => {
   assert.deepEqual(e2.needs, [13]);
 });
 
-test("smooth prover: special-prime exponent lists respect v_2 = 1", () => {
+await test("smooth prover: special-prime exponent lists respect v_2 = 1", () => {
   const T = [2, ...primesUpTo(31).filter((p) => p !== 2)];
   const es = allowedExponents(5, T, "special").map((o) => o.e);
   assert.ok(es.includes(1), "sigma(5) = 6 = 2 * 3");
   assert.ok(es.includes(5), "sigma(5^5) = 3906 = 2 * 3^2 * 7 * 31");
 });
 
-test("smooth prover (even mode) rediscovers the real perfect numbers", () => {
+await test("smooth prover (even mode) rediscovers the real perfect numbers", () => {
   assert.deepEqual(proveSmooth(31, "even").solutions, [6n, 28n, 496n]);
 });
 
-test("smooth prover: no odd perfect number is 60-smooth", () => {
+await test("smooth prover: no odd perfect number is 60-smooth", () => {
   const r = proveSmooth(60, "odd");
   assert.deepEqual(r.solutions, []);
   assert.ok(r.nodes > 0);
 });
 
-test("omega prover: support enumeration is exact", () => {
+await test("omega prover: support enumeration is exact", () => {
   assert.deepEqual(candidateSupports(1), []);
   assert.deepEqual(candidateSupports(2), []);
   assert.deepEqual(candidateSupports(3), [
@@ -158,7 +158,7 @@ test("omega prover: support enumeration is exact", () => {
   assert.throws(() => candidateSupports(4), /unbounded family/);
 });
 
-test("omega-5 prover: omega = 4 candidate enumeration", () => {
+await test("omega-5 prover: omega = 4 candidate enumeration", () => {
   const { boundedSets, families } = enumerateOmega4();
   assert.deepEqual(families, [
     [3, 5, 7],
@@ -171,11 +171,11 @@ test("omega-5 prover: omega = 4 candidate enumeration", () => {
   assert.ok(boundedSets.every((s) => s.length === 4));
 });
 
-test("omega-5 prover: family {3,5,7,p} dies entirely by windows", () => {
+await test("omega-5 prover: family {3,5,7,p} dies entirely by windows", () => {
   assert.deepEqual(refuteFamily([3, 5, 7], 5000), []);
 });
 
-test("omega-5 prover: full proof goes through", () => {
+await test("omega-5 prover: full proof goes through", () => {
   const r = proveOmega5();
   assert.equal(r.proved, true);
   assert.equal(r.bStar, 251);
@@ -183,14 +183,14 @@ test("omega-5 prover: full proof goes through", () => {
   assert.ok(r.familySupports.every((s) => Math.max(...s) <= 251));
 });
 
-test("proveSmoothForPrimes decides arbitrary prime sets", () => {
+await test("proveSmoothForPrimes decides arbitrary prime sets", () => {
   // even-mode set {2,3} admits exactly 6 = 2*3
   assert.deepEqual(proveSmoothForPrimes([3], "even").solutions, [6n]);
   // odd support {3,5,11,137} (the omega-5 sole survivor) is impossible
   assert.deepEqual(proveSmoothForPrimes([3, 5, 11, 137], "odd").solutions, []);
 });
 
-test("general omega prover matches the dedicated omega-5 proof", () => {
+await test("general omega prover matches the dedicated omega-5 proof", async () => {
   const { pure, tasks } = enumerateTasks(4);
   assert.equal(pure.length, 76);
   assert.deepEqual(tasks.map((t) => t.concrete), [
@@ -199,12 +199,12 @@ test("general omega prover matches the dedicated omega-5 proof", () => {
     [3, 5, 13],
   ]);
   assert.ok(tasks.every((t) => t.nSym === 1));
-  const r = proveOmegaAtLeast(5);
+  const r = await proveOmegaAtLeast(5);
   assert.equal(r.proved, true);
   assert.deepEqual(r.resolvedSupports, [[3, 5, 11, 137]]);
 });
 
-test("Touchard congruence lemmas verify exhaustively", () => {
+await test("Touchard congruence lemmas verify exhaustively", () => {
   const { holds, checks } = verifyTouchard();
   assert.equal(holds, true);
   assert.equal(checks.length, 4);

@@ -80,9 +80,27 @@ function hExact(r: number, e: number): Frac {
 }
 const hSup = (r: number): Frac => F(BigInt(r), BigInt(r - 1));
 
+// sieve-backed successor table: NEXT[n] = smallest prime > n, for n < LIMIT.
+// The enumeration calls nextPrime millions of times; Miller-Rabin there was
+// the previous bottleneck.
+const NEXT_LIMIT = 1 << 20;
+const NEXT = (() => {
+  const sieve = new Uint8Array(NEXT_LIMIT + 1);
+  for (let i = 2; i * i <= NEXT_LIMIT; i++) {
+    if (!sieve[i]) for (let j = i * i; j <= NEXT_LIMIT; j += i) sieve[j] = 1;
+  }
+  const next = new Int32Array(NEXT_LIMIT + 1);
+  let np = -1;
+  for (let n = NEXT_LIMIT; n >= 0; n--) {
+    next[n] = np;
+    if (n >= 2 && !sieve[n]) np = n;
+  }
+  return next;
+})();
+
 function nextPrime(n: number): number {
+  if (n < NEXT_LIMIT && NEXT[n] > 0) return NEXT[n];
   let p = n + 1;
-  if (p <= 2) return 2;
   if (p % 2 === 0) p++;
   while (!isPrimeBig(BigInt(p))) p += 2;
   return p;
@@ -98,13 +116,32 @@ export interface Task {
   nSym: number;
 }
 
-/** Step 1: supports and symbolic tasks for omega = w. */
-export function enumerateTasks(w: number): { pure: number[][]; tasks: Task[] } {
-  const pure: number[][] = [];
-  const tasks: Task[] = [];
+export type Emitted = { kind: "support"; sup: number[] } | { kind: "task"; task: Task };
 
-  const bestCompletion = (num: bigint, den: bigint, last: number, slots: number): boolean => {
+/**
+ * Exceeds-2 test with a float fast path and an exact fallback in the
+ * ambiguous zone. Equality num = 2*den is impossible (num is a product of
+ * odd primes), so the exact compare always resolves. Sound: floats only
+ * decide when they are 1e-9 clear of the boundary, far above their drift.
+ */
+function exceedsTwo(num: bigint, den: bigint, f: number): boolean {
+  if (f > 2.000000002) return true;
+  if (f < 1.999999998) return false;
+  return num > 2n * den;
+}
+
+/** Step 1, streaming: supports and symbolic tasks for omega = w. */
+export function* streamTasks(w: number): Generator<Emitted> {
+  const bestCompletion = (num: bigint, den: bigint, f: number, last: number, slots: number): boolean => {
     let p = last;
+    let ff = f;
+    for (let i = 0; i < slots; i++) {
+      p = nextPrime(p);
+      ff *= p / (p - 1);
+    }
+    if (ff > 2.000000002) return true;
+    if (ff < 1.999999998) return false;
+    p = last;
     for (let i = 0; i < slots; i++) {
       p = nextPrime(p);
       num *= BigInt(p);
@@ -113,21 +150,31 @@ export function enumerateTasks(w: number): { pure: number[][]; tasks: Task[] } {
     return num > 2n * den;
   };
 
-  const rec = (last: number, chosen: number[], num: bigint, den: bigint) => {
-    if (num > 2n * den) {
-      if (chosen.length === w) pure.push([...chosen]);
-      else tasks.push({ concrete: [...chosen], nSym: w - chosen.length });
+  function* rec(last: number, chosen: number[], num: bigint, den: bigint, f: number): Generator<Emitted> {
+    if (exceedsTwo(num, den, f)) {
+      if (chosen.length === w) yield { kind: "support", sup: [...chosen] };
+      else yield { kind: "task", task: { concrete: [...chosen], nSym: w - chosen.length } };
       return;
     }
     if (chosen.length === w) return; // product never reached 2: infeasible
     for (let p = nextPrime(last); ; p = nextPrime(p)) {
-      if (!bestCompletion(num, den, p - 1, w - chosen.length)) break;
+      if (!bestCompletion(num, den, f, p - 1, w - chosen.length)) break;
       chosen.push(p);
-      rec(p, chosen, num * BigInt(p), den * BigInt(p - 1));
+      yield* rec(p, chosen, num * BigInt(p), den * BigInt(p - 1), (f * p) / (p - 1));
       chosen.pop();
     }
-  };
-  rec(2, [], 1n, 1n);
+  }
+  yield* rec(2, [], 1n, 1n, 1);
+}
+
+/** Materializing wrapper (kept for tests and small w). */
+export function enumerateTasks(w: number): { pure: number[][]; tasks: Task[] } {
+  const pure: number[][] = [];
+  const tasks: Task[] = [];
+  for (const e of streamTasks(w)) {
+    if (e.kind === "support") pure.push(e.sup);
+    else tasks.push(e.task);
+  }
   return { pure, tasks };
 }
 
@@ -269,6 +316,7 @@ export function resolveTask(task: Task, emit: (support: number[]) => void): void
 
 export interface OmegaNResult {
   k: number;
+  pureCount?: number;
   pureSupports: number[][];
   tasks: Task[];
   resolvedSupports: number[][];
@@ -277,61 +325,134 @@ export interface OmegaNResult {
   proved: boolean;
 }
 
-/** Prove: every odd perfect number has at least k distinct prime factors. */
-export function proveOmegaAtLeast(k: number, log: (msg: string) => void = () => {}): OmegaNResult {
-  const seen = new Set<string>();
-  const allSupports: number[][] = [];
-  const addSupport = (s: number[]) => {
-    const key = s.join(",");
-    if (!seen.has(key)) {
-      seen.add(key);
-      allSupports.push(s);
+/**
+ * Prove: every odd perfect number has at least k distinct prime factors.
+ * Streams the enumeration (memory stays flat at millions of supports) and
+ * decides supports on a worker pool; `workers: 0` runs serially in-process
+ * (used by the tests).
+ */
+export async function proveOmegaAtLeast(
+  k: number,
+  log: (msg: string) => void = () => {},
+  workers = 0
+): Promise<OmegaNResult> {
+  let smoothNodes = 0;
+  let failures = 0;
+  let decided = 0;
+  let bStar = 13;
+  const resolvedSupports: number[][] = [];
+  let pureCount = 0;
+  const allTasks: Task[] = [];
+
+  // --- decision sink: worker pool or inline ---
+  const BATCH = 256;
+  let batch: number[][] = [];
+  let pool: import("node:worker_threads").Worker[] = [];
+  let outstanding = 0;
+  let drainResolve: (() => void) | null = null;
+  let rr = 0;
+
+  if (workers > 0) {
+    const { Worker } = await import("node:worker_threads");
+    for (let i = 0; i < workers; i++) {
+      const w = new Worker(new URL("./decide-worker.ts", import.meta.url));
+      w.on("message", (m: { nodes: number; bad: string[]; count: number }) => {
+        smoothNodes += m.nodes;
+        decided += m.count;
+        failures += m.bad.length;
+        for (const b of m.bad) log(`!!! PERFECT NUMBER: ${b}`);
+        outstanding--;
+        if (decided % 100000 < BATCH) log(`  decided ${decided} supports so far...`);
+        if (drainResolve && outstanding < workers * 8) {
+          drainResolve();
+          drainResolve = null;
+        }
+      });
+      pool.push(w);
+    }
+  }
+
+  const flush = async () => {
+    if (batch.length === 0) return;
+    const b = batch;
+    batch = [];
+    if (workers > 0) {
+      while (outstanding >= workers * 8) {
+        await new Promise<void>((res) => (drainResolve = res));
+      }
+      outstanding++;
+      pool[rr++ % pool.length].postMessage(b);
+    } else {
+      for (const sup of b) {
+        const r = proveSmoothForPrimes(sup, "odd", undefined, true);
+        smoothNodes += r.nodes;
+        decided++;
+        if (r.solutions.length > 0) {
+          failures++;
+          log(`!!! PERFECT NUMBER with support {${sup}}: ${r.solutions.join(", ")}`);
+        }
+      }
     }
   };
 
-  let allTasks: Task[] = [];
-  const pureAll: number[][] = [];
+  const submit = async (sup: number[]) => {
+    for (const p of sup) if (p > bStar) bStar = p;
+    batch.push(sup);
+    if (batch.length >= BATCH) await flush();
+  };
+
+  // --- phase 1: stream the enumeration ---
   for (let w = 1; w <= k - 1; w++) {
-    const { pure, tasks } = enumerateTasks(w);
-    pure.forEach(addSupport);
-    pureAll.push(...pure);
-    allTasks = allTasks.concat(tasks);
-    log(`omega = ${w}: ${pure.length} concrete supports, ${tasks.length} symbolic tasks`);
+    let pures = 0;
+    let taskCount = 0;
+    for (const e of streamTasks(w)) {
+      if (e.kind === "support") {
+        pures++;
+        pureCount++;
+        await submit(e.sup);
+      } else {
+        allTasks.push(e.task);
+        taskCount++;
+      }
+    }
+    log(`omega = ${w}: ${pures} concrete supports, ${taskCount} symbolic tasks`);
   }
 
-  const resolvedSupports: number[][] = [];
+  // --- phase 2: resolve symbolic tasks, submitting survivors as they emerge ---
+  const seen = new Set<string>();
   let taskIdx = 0;
+  const pendingSubmits: number[][] = [];
   for (const task of allTasks) {
     taskIdx++;
-    if (taskIdx % 10 === 0 || task.nSym >= 2) {
+    if (taskIdx % 25 === 0 || task.nSym >= 2) {
       log(`  task ${taskIdx}/${allTasks.length}: {${task.concrete}} + ${task.nSym} symbolic`);
     }
     resolveTask(task, (sup) => {
       const key = sup.join(",");
       if (!seen.has(key)) {
         seen.add(key);
-        allSupports.push(sup);
         resolvedSupports.push(sup);
+        pendingSubmits.push(sup);
       }
     });
+    while (pendingSubmits.length > 0) await submit(pendingSubmits.pop()!);
   }
-  log(`symbolic resolution: ${resolvedSupports.length} surviving supports`);
+  log(`symbolic resolution: ${resolvedSupports.length} surviving supports (largest prime ${bStar})`);
 
-  const bStar = Math.max(13, ...allSupports.flat());
-  log(`deciding ${allSupports.length} supports individually (largest prime ${bStar})...`);
-  let smoothNodes = 0;
-  let failures = 0;
-  for (const sup of allSupports) {
-    const r = proveSmoothForPrimes(sup, "odd");
-    smoothNodes += r.nodes;
-    if (r.solutions.length > 0) {
-      failures++;
-      log(`!!! PERFECT NUMBER with support {${sup}}: ${r.solutions.join(", ")}`);
+  // --- drain ---
+  await flush();
+  if (workers > 0) {
+    while (outstanding > 0) {
+      await new Promise<void>((res) => (drainResolve = res));
     }
+    for (const w of pool) await w.terminate();
   }
+  log(`decided ${decided} supports in total`);
+
   return {
     k,
-    pureSupports: pureAll,
+    pureSupports: [],
+    pureCount,
     tasks: allTasks,
     resolvedSupports,
     bStar,
@@ -343,9 +464,10 @@ export function proveOmegaAtLeast(k: number, log: (msg: string) => void = () => 
 const isMain = process.argv[1] && process.argv[1].endsWith("omega-n-prover.ts");
 if (isMain) {
   const k = Number(process.argv[2] ?? 6);
+  const workers = Number(process.argv[3] ?? 3);
   console.log(`THEOREM: every odd perfect number has at least ${k} distinct prime factors.\n`);
   const started = Date.now();
-  const r = proveOmegaAtLeast(k, (m) => console.log(`  ${m}`));
+  const r = await proveOmegaAtLeast(k, (m) => console.log(`  ${m}`), workers);
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   console.log(`\nfactor-chain run: ${r.smoothNodes} nodes; B* = ${r.bStar}.`);
   if (r.proved) {
