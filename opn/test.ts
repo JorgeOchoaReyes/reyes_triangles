@@ -192,9 +192,11 @@ await test("proveSmoothForPrimes decides arbitrary prime sets", () => {
 
 await test("general omega prover matches the dedicated omega-5 proof", async () => {
   const { pure, tasks } = enumerateTasks(4);
-  assert.equal(pure.length, 76);
+  // 74, not 76: {3,7,11,19} and {3,7,11,23} have no prime ≡ 1 (mod 4), so
+  // Euler's theorem prunes them at enumeration; the {3,5,7} family task is
+  // pruned by the minimum-abundancy bound (2.016 > 2)
+  assert.equal(pure.length, 74);
   assert.deepEqual(tasks.map((t) => t.concrete), [
-    [3, 5, 7],
     [3, 5, 11],
     [3, 5, 13],
   ]);

@@ -150,7 +150,57 @@ export function* streamTasks(w: number): Generator<Emitted> {
     return num > 2n * den;
   };
 
-  function* rec(last: number, chosen: number[], num: bigint, den: bigint, f: number): Generator<Emitted> {
+  /**
+   * Minimum-abundancy subtree prune. Each chosen prime contributes at least
+   * h(p^2) = (p^2+p+1)/p^2 when non-special or h(p) = (p+1)/p when it is
+   * Euler's special prime; unchosen (future) primes contribute > 1. So a
+   * sound lower bound on sigma(N)/N for EVERY extension of the prefix is
+   *   P0 * min(ratio of the smallest prefix prime ≡ 1 mod 4, or 1 if a
+   *   future prime may be special),
+   * where P0 = prod (p^2+p+1)/p^2 over the prefix and the special swap for q
+   * multiplies by q(q+1)/(q^2+q+1) < 1 (increasing in q, so the smallest
+   * eligible q is most favorable). Minimum abundancy only grows as primes
+   * join, so bound > 2 kills the entire subtree — millions of doomed
+   * supports are never emitted. Exact fallback at the float boundary.
+   */
+  const prunedByMinAbundancy = (
+    chosen: number[],
+    m0f: number,
+    hasSlots: boolean
+  ): boolean => {
+    const q = chosen.find((p) => p % 4 === 1);
+    if (q === undefined && !hasSlots) return true; // Euler: no special prime possible
+    let bound = m0f;
+    if (q !== undefined) bound = (m0f * (q * (q + 1))) / (q * q + q + 1);
+    // future-special option can only lower the bound to m0f * 1 = m0f, which
+    // exceeds the swapped bound, so `bound` is already the minimum when q exists
+    if (bound < 1.999999998) return false;
+    if (bound > 2.000000002) return true;
+    // exact resolution at the boundary
+    let n = 1n;
+    let d = 1n;
+    for (const p of chosen) {
+      const P = BigInt(p);
+      n *= P * P + P + 1n;
+      d *= P * P;
+    }
+    if (q !== undefined) {
+      const Q = BigInt(q);
+      n *= Q * (Q + 1n);
+      d *= Q * Q + Q + 1n;
+    }
+    return n > 2n * d;
+  };
+
+  function* rec(
+    last: number,
+    chosen: number[],
+    num: bigint,
+    den: bigint,
+    f: number,
+    m0f: number
+  ): Generator<Emitted> {
+    if (prunedByMinAbundancy(chosen, m0f, chosen.length < w)) return;
     if (exceedsTwo(num, den, f)) {
       if (chosen.length === w) yield { kind: "support", sup: [...chosen] };
       else yield { kind: "task", task: { concrete: [...chosen], nSym: w - chosen.length } };
@@ -160,11 +210,18 @@ export function* streamTasks(w: number): Generator<Emitted> {
     for (let p = nextPrime(last); ; p = nextPrime(p)) {
       if (!bestCompletion(num, den, f, p - 1, w - chosen.length)) break;
       chosen.push(p);
-      yield* rec(p, chosen, num * BigInt(p), den * BigInt(p - 1), (f * p) / (p - 1));
+      yield* rec(
+        p,
+        chosen,
+        num * BigInt(p),
+        den * BigInt(p - 1),
+        (f * p) / (p - 1),
+        (m0f * (p * p + p + 1)) / (p * p)
+      );
       chosen.pop();
     }
   }
-  yield* rec(2, [], 1n, 1n, 1);
+  yield* rec(2, [], 1n, 1n, 1, 1);
 }
 
 /** Materializing wrapper (kept for tests and small w). */
