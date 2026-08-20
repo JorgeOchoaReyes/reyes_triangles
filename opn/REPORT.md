@@ -68,7 +68,7 @@ factor. Pure sigma-bookkeeping can never close the question.
 | omega ≥ 3 | classical | 2 search nodes |
 | **omega ≥ 4** | Peirce, 1832 | **proved, 0.1 s** |
 | **omega ≥ 5** | Sylvester, 1888 | **proved, 0.2 s** |
-| omega ≥ 6 | Gradstein, 1925 | engine generalizes; resolution in progress |
+| **omega ≥ 6** | Gradstein, 1925 | **proved, 86 min** — 15,328 supports decided, largest prime 80,407 |
 | omega ≥ 8 | Chein / Hagis, 1979–80 | — |
 | omega ≥ 10 | Nielsen, 2015 | — |
 
@@ -86,7 +86,7 @@ certain branches bottom out in *exponential Diophantine* conditions — for
 example, a branch survives only if sigma(3^a) = (3^{a+1}−1)/2 is a pure
 prime power for unboundedly many a. These are exactly the sub-problems where
 the classical proofs turned hard, now isolated as concrete, attackable
-statements. Next moves, in order of ambition: finish the omega ≥ 6 run;
+statements. Next moves, in order of ambition: push omega ≥ 7 (running);
 parallelize the smooth prover toward a 10^4 prime-factor bound; attack the
 Diophantine walls with covering congruences.
 
