@@ -356,6 +356,10 @@ export async function proveOmegaAtLeast(
     const { Worker } = await import("node:worker_threads");
     for (let i = 0; i < workers; i++) {
       const w = new Worker(new URL("./decide-worker.ts", import.meta.url));
+      w.on("error", (err) => {
+        console.error(`worker ${i} crashed:`, err);
+        process.exit(1); // fail loudly; a hung pool would masquerade as progress
+      });
       w.on("message", (m: { nodes: number; bad: string[]; count: number }) => {
         smoothNodes += m.nodes;
         decided += m.count;

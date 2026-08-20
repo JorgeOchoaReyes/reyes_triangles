@@ -86,11 +86,17 @@ function multiplicativeOrder(p: bigint, l: bigint): bigint {
  * it is memoized — callers deciding millions of small prime sets reuse it.
  */
 const capTermCache = new Map<string, bigint>();
+// only small pairs recur across supports; unbounded caching hits the Map
+// size ceiling (2^24 entries) at omega >= 7 scale
+const CAP_CACHE_LIMIT = 20000;
 
 function capTerm(p: number, l: number): bigint {
-  const key = `${p},${l}`;
-  const hit = capTermCache.get(key);
-  if (hit !== undefined) return hit;
+  const cacheable = p < CAP_CACHE_LIMIT && l < CAP_CACHE_LIMIT;
+  const key = cacheable ? `${p},${l}` : "";
+  if (cacheable) {
+    const hit = capTermCache.get(key);
+    if (hit !== undefined) return hit;
+  }
   const P = BigInt(p);
   const L = BigInt(l);
   const d = l === 2 ? 2n : multiplicativeOrder(P, L);
@@ -102,7 +108,7 @@ function capTerm(p: number, l: number): bigint {
     mod *= L;
   }
   const term = L ** BigInt(v);
-  capTermCache.set(key, term);
+  if (cacheable) capTermCache.set(key, term);
   return term;
 }
 
